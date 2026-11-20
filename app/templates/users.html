@@ -1,0 +1,27 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import csrf, pager, empty %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Users</h1><div class="sub">{{ page.total }} accounts</div></div>
+  <a class="btn btn-primary" href="{{ url_for('main.user_new') }}">Create user</a></div>
+<form class="filters" method="get">
+  <div><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ q }}"></div>
+  <div><label class="form-label" for="role">Role</label><select class="form-select" id="role" name="role"><option value="">All roles</option>
+    {% for r in Role.ALL %}<option value="{{ r }}" {{ 'selected' if r == role }}>{{ r|label }}</option>{% endfor %}</select></div>
+  <button class="btn btn-outline-primary" type="submit">Filter</button>
+</form>
+<div class="panel">
+{% if page.items %}
+<div class="table-responsive"><table class="table mb-0 align-middle">
+  <thead><tr><th>Username</th><th>Name</th><th>Email</th><th>Role</th><th>Customer</th><th>Last sign-in</th><th>Status</th><th></th></tr></thead><tbody>
+  {% for u in page.items %}<tr>
+    <td class="idcell">{{ u.username }}</td><td>{{ u.full_name }}</td><td>{{ u.email }}</td><td>{{ u.role|label }}</td>
+    <td>{{ u.customer.company_name if u.customer }}</td><td>{{ u.last_login|dt }}</td>
+    <td><span class="chip {{ 'chip-on' if u.active else 'chip-off' }}">{{ 'Active' if u.active else 'Deactivated' }}</span></td>
+    <td class="text-end text-nowrap"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.user_edit', user_id=u.id) }}">Edit</a>
+      {% if u.id != current_user.id %}<form class="d-inline" method="post" action="{{ url_for('main.user_toggle', user_id=u.id) }}">{{ csrf() }}<button class="btn btn-sm btn-outline-secondary" type="submit">{{ 'Deactivate' if u.active else 'Activate' }}</button></form>{% endif %}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty('No users found', 'Change the filters or create a user.') }}{% endif %}
+</div>
+{{ pager(page, 'main.users', q=q, role=role) }}
+{% endblock %}

@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import csrf, chip, field, rail, empty %}
+{% block title %}{{ problem.title }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><div class="sub mb-1"><a href="{{ url_for('main.ticket_detail', ticket_id=ticket.id) }}">{{ ticket.ticket_no }}</a> · {{ ticket.title }}</div>
+    <h1>{{ problem.title }}</h1><div class="sub">{{ chip(ticket.status) }} <span class="ms-2">{{ problem.category }}</span></div></div>
+</div>
+<div class="panel mb-3"><div class="panel-body">{{ rail(inv.stage, true) }}
+  <div class="rail-labels"><span>Stage {{ inv.stage }} of 7: {{ inv.stage_name }}</span><span>Last updated {{ inv.updated_at|dt }}{{ ' by ' ~ inv.updated_by.full_name if inv.updated_by }}</span></div></div></div>
+
+{% if not editable %}
+<div class="locked-note">
+  {% if ticket.status == Status.PENDING_MANAGEMENT %}Locked while Management reviews this investigation.
+  {% elif ticket.status in (Status.APPROVED, Status.CLOSED) %}Approved and locked. It can no longer be edited.
+  {% elif current_user.role == Role.ENGINEER %}You can edit this investigation once the ticket is assigned to you and not locked.
+  {% else %}Read-only view. Only the assigned engineer can edit the investigation.{% endif %}
+</div>
+{% endif %}
+
+<ul class="nav nav-tabs" role="tablist">
+  {% for id, name in [('investigation','Investigation'),('evidence','Evidence and test data'),('graphs','Graphs'),('questions','Questions'),('solutions','Solutions'),('history','History')] %}
+  <li class="nav-item" role="presentation"><button class="nav-link {{ 'active' if loop.first }}" data-bs-toggle="tab" data-bs-target="#{{ id }}" type="button" role="tab">{{ name }}{% if id == 'questions' %} ({{ problem.questions|length }}){% elif id == 'solutions' %} ({{ problem.solutions|length }}){% endif %}</button></li>
+  {% endfor %}
+</ul>
+<div class="tab-content">
+
+<div class="tab-pane fade show active" id="investigation" role="tabpanel">
+  <div class="panel mb-3"><div class="panel-head"><h2>Reported problem</h2></div><div class="panel-body">{{ problem.description }}</div></div>
+  <div class="panel"><div class="panel-head"><h2>Engineering investigation</h2></div><div class="panel-body">
+  {% if editable %}
+    <form method="post" action="{{ url_for('main.investigation_save', problem_id=problem.id) }}" novalidate>{{ inv_form.hidden_tag() }}
+      <div class="row"><div class="col-md-5">{{ field(inv_form.stage) }}</div></div>
+      {% for name in ['problem_description','observations','suspected_root_cause','confirmed_root_cause','corrective_actions','preventive_actions','technical_comments','conclusion'] %}{{ field(inv_form[name]) }}{% endfor %}
+      {{ field(inv_form.note) }}
+      <button class="btn btn-primary" type="submit">Save investigation</button>
+    </form>
+  {% else %}
+    <dl class="kv">
+      {% for label, v in [('Engineering description', inv.problem_description), ('Observations', inv.observations), ('Suspected root cause', inv.suspected_root_cause), ('Confirmed root cause', inv.confirmed_root_cause), ('Corrective actions', inv.corrective_actions), ('Preventive actions', inv.preventive_actions), ('Technical comments', inv.technical_comments), ('Conclusion', inv.conclusion)] %}
+      <dt>{{ label }}</dt><dd>{{ v or 'Not recorded' }}</dd>{% endfor %}
+    </dl>
+  {% endif %}
+  </div></div>
+</div>
+
+<div class="tab-pane fade" id="evidence" role="tabpanel">
+  {% if editable %}
+  <div class="panel mb-3"><div class="panel-head"><h2>Upload evidence</h2></div><div class="panel-body">
+    <form method="post" enctype="multipart/form-data" action="{{ url_for('main.file_upload', problem_id=problem.id) }}" novalidate>{{ upload_form.hidden_tag() }}
+      <div class="row"><div class="col-md-4">{{ field(upload_form.kind) }}</div><div class="col-md-8">{{ field(upload_form.file) }}</div></div>
+      {{ field(upload_form.description) }}
+      <p class="text-muted small">Files up to {{ config.MAX_UPLOAD_MB }} MB. Content is checked and never executed.</p>
+      <button class="btn btn-primary" type="submit">Upload file</button>
+    </form></div></div>
+  {% endif %}
+  <div class="panel mb-3"><div class="panel-head"><h2>Files ({{ problem.test_files|length }})</h2></div>
+    {% if problem.test_files %}<div class="table-responsive"><table class="table mb-0 align-middle"><thead><tr><th>File</th><th>Type</th><th>Size</th><th>Uploaded</th><th>Description</th><th></th></tr></thead><tbody>
+    {% for f in problem.test_files %}<tr><td><a href="{{ url_for('main.file_download', file_id=f.id) }}">{{ f.filename }}</a>
+        {% if f.kind == 'image' %}<div class="mt-2"><img class="evidence-img" src="{{ url_for('main.file_download', file_id=f.id) }}" alt="{{ f.description or f.filename }}"></div>{% endif %}</td>
+      <td>{{ f.kind|label }}</td><td>{{ f.size|filesize }}</td><td>{{ f.created_at|dt }}<div class="text-muted small">{{ f.uploaded_by.full_name }}</div></td><td>{{ f.description }}</td>
+      <td class="text-end">{% if editable %}<form method="post" action="{{ url_for('main.file_delete', file_id=f.id) }}" data-confirm="Remove this file and any graphs built from it?">{{ csrf() }}<button class="btn btn-sm btn-outline-danger" type="submit">Remove</button></form>{% endif %}</td></tr>{% endfor %}
+    </tbody></table></div>{% else %}{{ empty('No files yet', 'Upload test data, images or supporting documents.') }}{% endif %}
+  </div>
+  <div class="panel"><div class="panel-head"><h2>Test result summaries</h2></div>
+    {% for r in problem.test_results %}<div class="panel-body border-bottom">
+      <strong>{{ r.title }}</strong> <span class="text-muted">{{ r.test_file.filename }} · {{ r.stats.rows }} rows</span>
+      {% set numeric = r.stats.columns|selectattr('type', 'equalto', 'numeric')|list %}
+      {% if numeric %}<div class="table-responsive mt-2"><table class="table table-sm mb-2"><thead><tr><th>Column</th><th>Count</th><th>Min</th><th>Max</th><th>Mean</th><th>Std dev</th></tr></thead><tbody>
+        {% for c in numeric[:12] %}<tr><td>{{ c.name }}</td><td>{{ c.count }}</td><td>{{ c.min }}</td><td>{{ c.max }}</td><td>{{ c.mean }}</td><td>{{ c.std }}</td></tr>{% endfor %}</tbody></table></div>{% endif %}
+      {% if editable %}
+      <form method="post" action="{{ url_for('main.result_update', result_id=r.id) }}" class="mt-2">{{ result_form.hidden_tag() }}
+        <div class="row g-2"><div class="col-md-4"><input class="form-control form-control-sm" name="title" value="{{ r.title }}" aria-label="Result title" required></div>
+        <div class="col-md-6"><input class="form-control form-control-sm" name="summary" value="{{ r.summary }}" placeholder="Your summary of this test result" aria-label="Summary"></div>
+        <div class="col-md-2"><button class="btn btn-sm btn-outline-primary w-100" type="submit">Save</button></div></div></form>
+      {% elif r.summary %}<p class="mb-0 mt-1">{{ r.summary }}</p>{% endif %}
+    </div>{% else %}{{ empty('No test results', 'Upload a CSV or XLSX file to create a summary automatically.') }}{% endfor %}
+  </div>
+</div>
+
+<div class="tab-pane fade" id="graphs" role="tabpanel">
+  {% if editable %}
+  <div class="panel mb-3"><div class="panel-head"><h2>Build a graph</h2></div><div class="panel-body">
+    {% if data_files %}
+    <form method="post" id="graph-builder" action="{{ url_for('main.graph_create', problem_id=problem.id) }}">{{ csrf() }}
+      <input type="hidden" name="test_file_id"><input type="hidden" name="x_column"><input type="hidden" name="y_column"><input type="hidden" name="chart_type">
+      <div class="row g-3">
+        <div class="col-md-3"><label class="form-label">Data file</label>
+          <select class="form-select" data-role="file" data-preview-url="{{ url_for('main.file_preview', file_id=0)|replace('/0/', '/__ID__/') }}" data-chart-url="{{ url_for('main.file_chart_data', file_id=0)|replace('/0/', '/__ID__/') }}">
+            {% for f in data_files %}<option value="{{ f.id }}">{{ f.filename }}</option>{% endfor %}</select></div>
+        <div class="col-md-3"><label class="form-label">Chart type</label><select class="form-select" data-role="type"><option value="line">Line</option><option value="bar">Bar</option><option value="scatter">Scatter</option></select></div>
+        <div class="col-md-3"><label class="form-label">X axis</label><select class="form-select" data-role="x"></select></div>
+        <div class="col-md-3"><label class="form-label">Y axis (numeric)</label><select class="form-select" data-role="y"></select></div>
+      </div>
+      <div class="text-danger small my-2" data-role="msg" role="alert"></div>
+      <div data-role="preview" class="mb-3"></div>
+      <div class="graph-canvas mb-3"><canvas aria-label="Graph preview" role="img"></canvas></div>
+      <div class="row"><div class="col-md-6 mb-3"><label class="form-label" for="g-title">Graph title</label><input class="form-control" id="g-title" name="title" required maxlength="200"></div></div>
+      <div class="mb-3"><label class="form-label" for="g-exp">What this graph shows</label><textarea class="form-control" id="g-exp" name="explanation" rows="3" required maxlength="3000"></textarea></div>
+      <button class="btn btn-primary" type="submit" data-role="save" disabled>Save graph to this problem</button>
+    </form>
+    {% else %}{{ empty('Upload test data first', 'Add a CSV or XLSX file in Evidence and test data, then build graphs from it.') }}{% endif %}
+  </div></div>
+  {% endif %}
+  {% for g in problem.graphs %}
+  <div class="panel mb-3"><div class="panel-head"><h2>{{ g.title }}</h2><span>{{ chip('LOW', g.chart_type|label) }} <span class="text-muted small ms-1">{{ g.test_file.filename }}</span></span></div>
+    <div class="panel-body"><div class="graph-canvas"><canvas data-graph-url="{{ url_for('main.graph_data', graph_id=g.id) }}" data-title="" aria-label="{{ g.title }}" role="img"></canvas></div>
+      <p class="mt-3 mb-0">{{ g.explanation }}</p>
+      {% if editable %}<form class="mt-2" method="post" action="{{ url_for('main.graph_delete', graph_id=g.id) }}" data-confirm="Remove this graph?">{{ csrf() }}<button class="btn btn-sm btn-outline-danger" type="submit">Remove graph</button></form>{% endif %}</div></div>
+  {% else %}{% if not editable %}<div class="panel">{{ empty('No graphs', 'The engineer has not added graphs to this problem.') }}</div>{% endif %}{% endfor %}
+</div>
+
+<div class="tab-pane fade" id="questions" role="tabpanel">
+  {% if editable %}
+  <div class="panel mb-3"><div class="panel-head"><h2>Add technical question</h2></div><div class="panel-body">
+    <form method="post" action="{{ url_for('main.question_create', problem_id=problem.id) }}" novalidate>{{ question_form.hidden_tag() }}
+      {% for f in question_form if f.type not in ('CSRFTokenField',) %}{{ field(f, 3) }}{% endfor %}
+      <button class="btn btn-primary" type="submit">Add question</button></form></div></div>
+  {% endif %}
+  {% for q in problem.questions %}
+  <div class="panel mb-3"><div class="panel-head"><h2>Question {{ loop.index }}</h2>
+    {% if editable %}<form method="post" action="{{ url_for('main.question_delete', question_id=q.id) }}" data-confirm="Remove this question and its justifications?">{{ csrf() }}<button class="btn btn-sm btn-outline-danger" type="submit">Remove</button></form>{% endif %}</div>
+    <div class="panel-body"><dl class="kv"><dt>Question</dt><dd>{{ q.question }}</dd>
+      <dt>Justification</dt><dd>{% for j in q.justifications %}{{ '- ' if q.justifications|length > 1 }}{{ j.text }}{{ '\n' if not loop.last }}{% endfor %}</dd>
+      <dt>Supporting evidence</dt><dd>{{ q.supporting_evidence or '-' }}</dd><dt>Test result</dt><dd>{{ q.test_result or '-' }}</dd>
+      <dt>Conclusion</dt><dd>{{ q.conclusion or '-' }}</dd><dt>Proposed action</dt><dd>{{ q.proposed_action or '-' }}</dd></dl>
+      {% if editable %}<form class="mt-3" method="post" action="{{ url_for('main.justification_create', question_id=q.id) }}">{{ justification_form.hidden_tag() }}
+        <div class="input-group input-group-sm"><input class="form-control" name="text" placeholder="Add another justification" aria-label="Additional justification" required maxlength="4000"><button class="btn btn-outline-primary" type="submit">Add</button></div></form>{% endif %}
+    </div></div>
+  {% else %}<div class="panel">{{ empty('No questions yet', 'Technical questions with justifications appear here and in the final report.') }}</div>{% endfor %}
+</div>
+
+<div class="tab-pane fade" id="solutions" role="tabpanel">
+  {% if editable %}
+  <div class="panel mb-3"><div class="panel-head"><h2>Add proposed solution</h2></div><div class="panel-body">
+    <form method="post" action="{{ url_for('main.solution_create', problem_id=problem.id) }}" novalidate>{{ solution_form.hidden_tag() }}{{ field(solution_form.description) }}
+      <button class="btn btn-primary" type="submit">Add solution</button></form></div></div>
+  {% endif %}
+  <div class="panel">{% for s in problem.solutions %}<div class="panel-body border-bottom d-flex justify-content-between gap-3"><div><strong>{{ loop.index }}.</strong> <span class="kv-text">{{ s.description }}</span></div>
+    {% if editable %}<form method="post" action="{{ url_for('main.solution_delete', solution_id=s.id) }}" data-confirm="Remove this solution?">{{ csrf() }}<button class="btn btn-sm btn-outline-danger" type="submit">Remove</button></form>{% endif %}</div>
+  {% else %}{{ empty('No solutions yet', 'Propose at least one solution before submitting to Management.') }}{% endfor %}</div>
+</div>
+
+<div class="tab-pane fade" id="history" role="tabpanel"><div class="panel"><div class="panel-head"><h2>Investigation history</h2></div>
+  {% if inv.updates %}<ul class="list-unstyled history mb-0 px-3">{% for u in inv.updates|reverse %}
+    <li><strong>{{ u.user.full_name }}</strong> <span class="when">{{ u.created_at|dt }} UTC · Stage {{ u.stage }}: {{ u.stage_name }}</span>
+      <div>{% if u.changed_fields %}Changed: {{ u.changed_fields }}. {% endif %}{{ u.note }}</div></li>{% endfor %}</ul>
+  {% else %}{{ empty('No updates yet', 'Each save, upload and question is recorded here with who did it and when.') }}{% endif %}</div></div>
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/graphs.js') }}"></script>
+{% endblock %}

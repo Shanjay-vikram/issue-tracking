@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import csrf, pager, empty %}
+{% block title %}Customers{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Customers</h1><div class="sub">{{ page.total }} registered</div></div>
+  <a class="btn btn-primary" href="{{ url_for('main.customer_new') }}">Register customer</a></div>
+<form class="filters" method="get">
+  <div><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Company, contact, email or ID"></div>
+  <div><label class="form-label" for="country">Country</label><input class="form-control" id="country" name="country" value="{{ country }}"></div>
+  <div><label class="form-label" for="status">Status</label><select class="form-select" id="status" name="status">
+    <option value="">All</option><option value="active" {{ 'selected' if status == 'active' }}>Active</option><option value="inactive" {{ 'selected' if status == 'inactive' }}>Inactive</option></select></div>
+  <button class="btn btn-outline-primary" type="submit">Filter</button>
+</form>
+<div class="panel">
+{% if page.items %}
+<div class="table-responsive"><table class="table mb-0 align-middle">
+  <thead><tr><th>ID</th><th>Company</th><th>Contact</th><th>Email</th><th>Phone</th><th>Country</th><th>Created</th><th>Status</th><th></th></tr></thead><tbody>
+  {% for c in page.items %}<tr>
+    <td class="idcell">{{ c.customer_code }}</td><td>{{ c.company_name }}</td><td>{{ c.contact_person }}</td><td>{{ c.email }}</td><td>{{ c.phone }}</td><td>{{ c.country }}</td><td>{{ c.created_at|dt('%Y-%m-%d') }}</td>
+    <td><span class="chip {{ 'chip-on' if c.active else 'chip-off' }}">{{ 'Active' if c.active else 'Inactive' }}</span></td>
+    <td class="text-end text-nowrap">
+      <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.customer_edit', customer_id=c.id) }}">Edit</a>
+      <form class="d-inline" method="post" action="{{ url_for('main.customer_toggle', customer_id=c.id) }}">{{ csrf() }}<button class="btn btn-sm btn-outline-secondary" type="submit">{{ 'Deactivate' if c.active else 'Activate' }}</button></form>
+    </td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty('No customers found', 'Register the first customer to start creating tickets.') }}{% endif %}
+</div>
+{{ pager(page, 'main.customers', q=q, status=status, country=country) }}
+{% endblock %}

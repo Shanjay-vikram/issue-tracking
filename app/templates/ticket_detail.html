@@ -1,0 +1,96 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import csrf, chip, field, rail, empty %}
+{% block title %}{{ ticket.ticket_no }}{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>{{ ticket.ticket_no }} · {{ ticket.title }}</h1>
+    <div class="sub">{{ chip(ticket.status) }} {{ chip(ticket.priority) }} <span class="ms-2">{{ ticket.customer.company_name }}</span></div></div>
+  <div class="d-flex flex-wrap gap-2">
+    {% if can_edit_ticket %}
+      <a class="btn btn-outline-primary" href="{{ url_for('main.ticket_edit', ticket_id=ticket.id) }}">Edit ticket</a>
+      <a class="btn btn-outline-primary" href="{{ url_for('main.problem_new', ticket_id=ticket.id) }}">Add problem</a>
+    {% endif %}
+    {% if current_user.role == Role.ENGINEER and ticket.assigned_engineer_id == current_user.id and ticket.status in Status.ENGINEER_EDITABLE %}
+      <form method="post" action="{{ url_for('main.ticket_submit', ticket_id=ticket.id) }}" data-confirm="Submit all problems to Management? You cannot edit them until Management responds.">{{ csrf() }}<button class="btn btn-primary" type="submit">Submit to Management</button></form>
+    {% endif %}
+    {% if current_user.role in (Role.ADMIN, Role.SUPPORT, Role.MANAGEMENT) and ticket.status in (Status.APPROVED, Status.CLOSED) %}
+      <form method="post" action="{{ url_for('main.report_generate', ticket_id=ticket.id) }}">{{ csrf() }}<button class="btn btn-primary" type="submit">{{ 'Regenerate final report' if ticket.latest_report else 'Generate final report' }}</button></form>
+    {% endif %}
+    {% if current_user.role in (Role.ADMIN, Role.SUPPORT, Role.MANAGEMENT) and ticket.status == Status.APPROVED and ticket.latest_report %}
+      <form method="post" action="{{ url_for('main.ticket_close', ticket_id=ticket.id) }}" data-confirm="Close this ticket?">{{ csrf() }}<button class="btn btn-outline-primary" type="submit">Close ticket</button></form>
+    {% endif %}
+  </div>
+</div>
+
+{% if ticket.status == Status.REWORK and ticket.approvals %}
+<div class="locked-note"><strong>Returned for rework.</strong> {{ ticket.approvals[-1].comments }}</div>
+{% elif ticket.status == Status.PENDING_MANAGEMENT %}
+<div class="locked-note">Investigation is locked while Management reviews it.</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="panel mb-3"><div class="panel-head"><h2>Ticket details</h2></div><div class="panel-body">
+      <dl class="kv">
+        <dt>Customer</dt><dd>{{ ticket.customer.company_name }} ({{ ticket.customer.customer_code }})</dd>
+        <dt>Product</dt><dd>{{ ticket.product_name }} · {{ ticket.product_model }}</dd>
+        <dt>Serial number</dt><dd>{{ ticket.serial_number }}</dd>
+        <dt>Created</dt><dd>{{ ticket.created_at|dt }} by {{ ticket.created_by.full_name }}</dd>
+        <dt>Target date</dt><dd>{{ ticket.target_date|dt('%Y-%m-%d') if ticket.target_date else 'Not set' }}</dd>
+        <dt>Description</dt><dd>{{ ticket.description }}</dd>
+      </dl></div></div>
+
+    <div class="panel mb-3"><div class="panel-head"><h2>Hardware problems ({{ ticket.problems|length }})</h2></div>
+      {% for p in ticket.problems %}
+      <div class="panel-body border-bottom">
+        <div class="d-flex flex-wrap justify-content-between gap-2">
+          <div><a class="idcell" href="{{ url_for('main.problem_detail', problem_id=p.id) }}">{{ loop.index }}. {{ p.title }}</a>
+            <span class="text-muted ms-2">{{ p.category }}</span></div>
+          <div class="text-nowrap">
+            {% if can_edit_ticket %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('main.problem_edit', problem_id=p.id) }}">Edit</a>{% endif %}
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('main.problem_detail', problem_id=p.id) }}">Open investigation</a></div>
+        </div>
+        <div class="text-muted small my-2">{{ p.description|truncate(220) }}</div>
+        {{ rail(p.stage) }}
+        <div class="rail-labels"><span>Stage {{ p.stage }}: {{ STAGES[p.stage] }}</span>
+          <span>{{ p.test_files|length }} file{{ '' if p.test_files|length == 1 else 's' }} · {{ p.graphs|length }} graph{{ '' if p.graphs|length == 1 else 's' }} · {{ p.questions|length }} question{{ '' if p.questions|length == 1 else 's' }} · {{ p.solutions|length }} solution{{ '' if p.solutions|length == 1 else 's' }}</span></div>
+      </div>
+      {% else %}{{ empty('No problems yet', 'Add at least one hardware problem.') }}{% endfor %}
+    </div>
+
+    <div class="panel"><div class="panel-head"><h2>Management decisions</h2></div>
+      {% if ticket.approvals %}<ul class="list-unstyled history mb-0 px-3">
+        {% for a in ticket.approvals|reverse %}<li>{{ chip('APPROVED' if a.decision == 'APPROVED' else 'REWORK', a.decision|label) }}
+          <strong class="ms-1">{{ a.decided_by.full_name }}</strong> <span class="when">{{ a.created_at|dt }} UTC</span>
+          <div>{{ a.comments or 'No comment.' }}</div></li>{% endfor %}</ul>
+      {% else %}{{ empty('No decisions yet', 'Management decisions are recorded here once the investigation is submitted.') }}{% endif %}
+    </div>
+  </div>
+
+  <div class="col-lg-4">
+    <div class="panel mb-3"><div class="panel-head"><h2>Assignment</h2></div><div class="panel-body">
+      <p class="mb-2"><strong>{{ ticket.assigned_engineer.full_name if ticket.assigned_engineer else 'No engineer assigned' }}</strong></p>
+      {% if assign_form %}
+      <form method="post" action="{{ url_for('main.ticket_assign', ticket_id=ticket.id) }}">{{ assign_form.hidden_tag() }}
+        {{ field(assign_form.engineer_id) }}<button class="btn btn-outline-primary btn-sm" type="submit">Save assignment</button></form>
+      {% endif %}
+    </div></div>
+
+    {% if decision_form %}
+    <div class="panel mb-3"><div class="panel-head"><h2>Management decision</h2></div><div class="panel-body">
+      <p class="text-muted small">Review every problem, then approve or return it. Comments are required when returning.</p>
+      <form method="post" action="{{ url_for('main.ticket_decision', ticket_id=ticket.id) }}" novalidate>{{ decision_form.hidden_tag() }}
+        {{ field(decision_form.decision) }}{{ field(decision_form.comments) }}
+        <button class="btn btn-primary" type="submit">Record decision</button></form>
+    </div></div>
+    {% endif %}
+
+    <div class="panel"><div class="panel-head"><h2>Final reports</h2></div>
+      {% if ticket.reports %}<ul class="list-unstyled history mb-0 px-3">
+        {% for r in ticket.reports|reverse %}<li><a href="{{ url_for('main.report_download', report_id=r.id) }}">Version {{ r.version }} (PDF, {{ r.size|filesize }})</a>
+          <div class="when">{{ r.created_at|dt }} UTC by {{ r.generated_by.full_name }}{{ ' · visible to customer' if loop.first and ticket.status in (Status.APPROVED, Status.CLOSED) }}</div></li>{% endfor %}</ul>
+      {% else %}{{ empty('No report yet', 'A report can be generated once Management approves.') }}{% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

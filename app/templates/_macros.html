@@ -1,0 +1,49 @@
+{% macro csrf() %}<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">{% endmacro %}
+
+{% macro field(f, rows=none) %}
+  {% if f.type == 'HiddenField' %}{{ f() }}
+  {% elif f.type == 'SubmitField' %}
+  {% else %}
+  <div class="mb-3">
+    <label class="form-label" for="{{ f.id }}">{{ f.label.text }}{% if f.flags.required %} <span class="text-danger" aria-hidden="true">*</span>{% endif %}</label>
+    {% set cls = 'form-select' if f.type == 'SelectField' else ('form-control' if f.type != 'FileField' else 'form-control') %}
+    {{ f(class=cls ~ (' is-invalid' if f.errors else ''), rows=rows or 4) if f.type == 'TextAreaField' else f(class=cls ~ (' is-invalid' if f.errors else '')) }}
+    {% for e in f.errors %}<div class="invalid-feedback d-block">{{ e }}</div>{% endfor %}
+  </div>
+  {% endif %}
+{% endmacro %}
+
+{% macro chip(status, label=none) %}<span class="chip chip-{{ status }}">{{ label or (status|label) }}</span>{% endmacro %}
+
+{% macro customer_chip(ticket) %}{% set s = customer_status(ticket) %}<span class="chip chip-{{ s.split(' ')[0] }}">{{ s }}</span>{% endmacro %}
+
+{% macro rail(stage, large=false) %}
+  <ol class="rail{{ ' rail-lg' if large }}" aria-label="Investigation stage {{ stage }} of 7: {{ STAGES[stage] }}">
+    {% for n, name in STAGES.items() %}<li class="{{ 'done' if n < stage else ('now' if n == stage else '') }}" title="{{ n }}. {{ name }}">{% if large %}{{ name }}{% endif %}</li>{% endfor %}
+  </ol>
+{% endmacro %}
+
+{% macro empty(title, text) %}<div class="empty"><strong>{{ title }}</strong>{{ text }}</div>{% endmacro %}
+
+{% macro pager(page, endpoint) %}
+  {% if page.pages > 1 %}
+  <nav aria-label="Pages"><ul class="pagination pagination-sm justify-content-end mb-0 mt-3">
+    {% for p in page.iter_pages(left_edge=1, right_edge=1, left_current=1, right_current=2) %}
+      {% if p %}<li class="page-item {{ 'active' if p == page.page }}"><a class="page-link" href="{{ url_for(endpoint, page=p, **kwargs) }}">{{ p }}</a></li>
+      {% else %}<li class="page-item disabled"><span class="page-link">…</span></li>{% endif %}
+    {% endfor %}
+  </ul></nav>
+  {% endif %}
+{% endmacro %}
+
+{% macro icon(name) %}
+<svg viewBox="0 0 24 24" aria-hidden="true">
+{% if name == 'grid' %}<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
+{% elif name == 'ticket' %}<path d="M3 8a2 2 0 0 0 0 8v2a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1v-2a2 2 0 0 1 0-8V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1z"/><path d="M13 5v14" stroke-dasharray="2 3"/>
+{% elif name == 'building' %}<rect x="4" y="3" width="16" height="18" rx="1"/><path d="M9 8h2M13 8h2M9 12h2M13 12h2M10 21v-4h4v4"/>
+{% elif name == 'users' %}<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.4c2 .8 3.5 2.6 3.5 5.6"/>
+{% elif name == 'log' %}<path d="M6 3h9l4 4v14H6z"/><path d="M9 11h7M9 15h7M9 7h3"/>
+{% elif name == 'check' %}<circle cx="12" cy="12" r="9"/><path d="m8 12.5 3 3 5-6"/>
+{% elif name == 'user' %}<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"/>
+{% endif %}</svg>
+{% endmacro %}

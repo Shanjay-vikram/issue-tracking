@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import field %}
+{% block title %}Sign in{% endblock %}
+{% block public %}
+<div class="login-wrap">
+  <section class="login-side">
+    <div class="brand"><span class="brand-mark">H</span>HardwareCare</div>
+    <div>
+      <h1>Hardware issues, investigated and signed off.</h1>
+      <p>Follow every customer problem from report to root cause, management approval and final PDF.</p>
+    </div>
+    <small>{{ company_name }}</small>
+  </section>
+  <section class="login-form">
+    <div class="panel"><div class="panel-body p-4">
+      <h2 class="h4 mb-3">Sign in</h2>
+      {% include '_flash.html' %}
+      <form method="post" novalidate>
+        {{ form.hidden_tag() }}
+        {{ field(form.username) }}
+        {{ field(form.password) }}
+        <button class="btn btn-primary w-100" type="submit">Sign in</button>
+      </form>
+      <p class="text-muted small mt-3 mb-0">Accounts are created by an administrator. Contact support if you cannot sign in.</p>
+    </div></div>
+  </section>
+</div>
+{% endblock %}

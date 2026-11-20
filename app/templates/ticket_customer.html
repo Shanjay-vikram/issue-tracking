@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import customer_chip, empty %}
+{% block title %}{{ ticket.ticket_no }}{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>{{ ticket.ticket_no }} · {{ ticket.title }}</h1><div class="sub">{{ customer_chip(ticket) }}</div></div>
+  {% if can_download %}<a class="btn btn-primary" href="{{ url_for('main.report_download', report_id=ticket.latest_report.id) }}">Download final report (PDF)</a>{% endif %}</div>
+<div class="row g-3"><div class="col-lg-8">
+  <div class="panel mb-3"><div class="panel-head"><h2>Your ticket</h2></div><div class="panel-body"><dl class="kv">
+    <dt>Product</dt><dd>{{ ticket.product_name }} · {{ ticket.product_model }}</dd><dt>Serial number</dt><dd>{{ ticket.serial_number }}</dd>
+    <dt>Reported</dt><dd>{{ ticket.created_at|dt('%Y-%m-%d') }}</dd><dt>Target date</dt><dd>{{ ticket.target_date|dt('%Y-%m-%d') if ticket.target_date else 'Not set' }}</dd>
+    <dt>Description</dt><dd>{{ ticket.description }}</dd></dl></div></div>
+  <div class="panel"><div class="panel-head"><h2>Reported problems</h2></div>
+    {% for p in ticket.problems %}<div class="panel-body border-bottom"><strong>{{ loop.index }}. {{ p.title }}</strong> <span class="text-muted">{{ p.category }}</span><div class="mt-1">{{ p.description }}</div></div>
+    {% else %}{{ empty('No problems listed', 'Support will add the reported problems.') }}{% endfor %}</div>
+</div>
+<div class="col-lg-4"><div class="panel"><div class="panel-head"><h2>Final report</h2></div>
+  {% if can_download %}<div class="panel-body"><p>The engineering report is approved and ready.</p><a class="btn btn-primary btn-sm" href="{{ url_for('main.report_download', report_id=ticket.latest_report.id) }}">Download PDF</a></div>
+  {% else %}{{ empty('Not available yet', 'You can download the report once the investigation is approved and issued.') }}{% endif %}
+</div></div></div>
+{% endblock %}

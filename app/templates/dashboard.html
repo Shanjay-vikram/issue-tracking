@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import chip, customer_chip, empty %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Dashboard</h1>
+  <div class="sub">{% if current_user.role == Role.CUSTOMER %}Your hardware tickets{% elif current_user.role == Role.ENGINEER %}Tickets assigned to you{% else %}All tickets{% endif %}</div></div>
+  {% if current_user.role in (Role.ADMIN, Role.SUPPORT) %}<a class="btn btn-primary" href="{{ url_for('main.ticket_new') }}">Create ticket</a>{% endif %}
+</div>
+
+{% set s = data.stats %}
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-xl"><div class="stat"><div class="n">{{ s.total }}</div><div class="l">Total tickets</div></div></div>
+  <div class="col-6 col-md-4 col-xl"><div class="stat"><div class="n">{{ s.open }}</div><div class="l">Open</div></div></div>
+  <div class="col-6 col-md-4 col-xl"><div class="stat"><div class="n">{{ s.in_progress }}</div><div class="l">In progress</div></div></div>
+  {% if current_user.role != Role.CUSTOMER %}
+  <div class="col-6 col-md-4 col-xl"><div class="stat warn"><div class="n">{{ s.pending }}</div><div class="l">Pending Management</div></div></div>
+  <div class="col-6 col-md-4 col-xl"><div class="stat bad"><div class="n">{{ s.rework }}</div><div class="l">Returned for rework</div></div></div>
+  {% endif %}
+  <div class="col-6 col-md-4 col-xl"><div class="stat ok"><div class="n">{{ s.approved }}</div><div class="l">{{ 'Investigation complete' if current_user.role == Role.CUSTOMER else 'Approved' }}</div></div></div>
+  <div class="col-6 col-md-4 col-xl"><div class="stat"><div class="n">{{ s.closed }}</div><div class="l">Closed</div></div></div>
+</div>
+
+{% if waiting %}
+<div class="panel mb-4"><div class="panel-head"><h2>Waiting for your decision</h2></div>
+  <div class="table-responsive"><table class="table mb-0 align-middle"><tbody>
+  {% for t in waiting %}<tr><td><a class="idcell" href="{{ url_for('main.ticket_detail', ticket_id=t.id) }}">{{ t.ticket_no }}</a></td><td>{{ t.title }}</td><td>{{ t.customer.company_name }}</td><td>{{ t.assigned_engineer.full_name if t.assigned_engineer }}</td><td class="text-end"><a class="btn btn-sm btn-primary" href="{{ url_for('main.ticket_detail', ticket_id=t.id) }}">Review</a></td></tr>{% endfor %}
+  </tbody></table></div></div>
+{% endif %}
+
+<div class="row g-3 mb-4">
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Ticket status</h2></div><div class="panel-body">
+    {% if data.status_chart.values %}<div class="chart-box"><canvas id="chart-status" aria-label="Ticket status distribution" role="img"></canvas></div>{% else %}{{ empty('No tickets yet', 'Status charts appear once tickets exist.') }}{% endif %}
+  </div></div></div>
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Tickets per month</h2></div><div class="panel-body">
+    <div class="chart-box"><canvas id="chart-monthly" aria-label="Monthly ticket trend" role="img"></canvas></div>
+  </div></div></div>
+  {% if data.workload is not none %}
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Engineer workload</h2></div><div class="panel-body">
+    {% if data.workload.values %}<div class="chart-box"><canvas id="chart-workload" aria-label="Engineer workload" role="img"></canvas></div>{% else %}{{ empty('No active assignments', 'Assigned, unfinished tickets per engineer show here.') }}{% endif %}
+  </div></div></div>
+  {% endif %}
+  {% if data.categories is not none %}
+  <div class="col-lg-6"><div class="panel h-100"><div class="panel-head"><h2>Problem categories</h2></div><div class="panel-body">
+    {% if data.categories.values %}<div class="chart-box"><canvas id="chart-categories" aria-label="Problem category distribution" role="img"></canvas></div>{% else %}{{ empty('No problems logged', 'Categories appear when tickets contain problems.') }}{% endif %}
+  </div></div></div>
+  {% endif %}
+</div>
+
+<div class="panel"><div class="panel-head"><h2>Recently updated</h2><a href="{{ url_for('main.tickets') }}">View all</a></div>
+  {% if recent %}
+  <div class="table-responsive"><table class="table mb-0 align-middle">
+    <thead><tr><th>Ticket</th><th>Title</th>{% if current_user.role != Role.CUSTOMER %}<th>Customer</th>{% endif %}<th>Priority</th><th>Status</th><th>Updated</th></tr></thead><tbody>
+    {% for t in recent %}<tr>
+      <td><a class="idcell" href="{{ url_for('main.ticket_detail', ticket_id=t.id) }}">{{ t.ticket_no }}</a></td><td>{{ t.title }}</td>
+      {% if current_user.role != Role.CUSTOMER %}<td>{{ t.customer.company_name }}</td>{% endif %}
+      <td>{{ chip(t.priority) }}</td>
+      <td>{% if current_user.role == Role.CUSTOMER %}{{ customer_chip(t) }}{% else %}{{ chip(t.status) }}{% endif %}</td>
+      <td>{{ t.updated_at|dt }}</td></tr>{% endfor %}
+  </tbody></table></div>
+  {% else %}{{ empty('No tickets yet', 'Tickets you can see will appear here.') }}{% endif %}
+</div>
+<script type="application/json" id="dash-data">{{ data|tojson }}</script>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/chart.umd.js') }}"></script>
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+{% endblock %}

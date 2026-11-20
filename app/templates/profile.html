@@ -1,0 +1,13 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import field %}
+{% block title %}Account{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Account</h1><div class="sub">{{ current_user.full_name }} · {{ current_user.role|label }} · {{ current_user.email }}</div></div></div>
+<div class="panel" style="max-width:520px"><div class="panel-head"><h2>Change password</h2></div><div class="panel-body">
+  <form method="post" novalidate>{{ form.hidden_tag() }}
+    {{ field(form.current_password) }}{{ field(form.new_password) }}{{ field(form.confirm) }}
+    <p class="text-muted small">Use at least 10 characters with letters and numbers.</p>
+    <button class="btn btn-primary" type="submit">Change password</button>
+  </form>
+</div></div>
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import field %}
+{% block content %}
+<div class="page-head"><div><h1>{{ title }}</h1>{% if hint %}<div class="sub">{{ hint }}</div>{% endif %}</div>
+  <a class="btn btn-outline-primary btn-sm" href="{{ back }}">Cancel</a></div>
+<div class="panel"><div class="panel-body">
+  <form method="post" novalidate>
+    {{ form.hidden_tag() }}
+    <div class="row">
+    {% for f in form if f.type not in ('CSRFTokenField', 'SubmitField') %}
+      <div class="{{ 'col-12' if f.type == 'TextAreaField' else 'col-md-6' }}">{{ field(f) }}</div>
+    {% endfor %}
+    </div>
+    <button class="btn btn-primary" type="submit">{{ form.submit.label.text }}</button>
+  </form>
+</div></div>
+{% endblock %}

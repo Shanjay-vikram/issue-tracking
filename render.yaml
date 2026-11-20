@@ -1,0 +1,27 @@
+# Render Blueprint: creates the web service and a PostgreSQL database together.
+databases:
+  - name: hardwarecare-db
+    plan: basic-256mb
+services:
+  - type: web
+    name: hardwarecare
+    runtime: python
+    plan: starter
+    buildCommand: pip install -r requirements.txt
+    startCommand: flask db upgrade && gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 120 run:app
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: FLASK_APP
+        value: run.py
+      - key: APP_ENV
+        value: production
+      - key: SECRET_KEY
+        generateValue: true
+      - key: COMPANY_NAME
+        value: HardwareCare Engineering
+      - key: DATABASE_URL
+        fromDatabase:
+          name: hardwarecare-db
+          property: connectionString

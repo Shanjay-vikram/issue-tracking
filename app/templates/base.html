@@ -1,0 +1,57 @@
+{% from '_macros.html' import icon %}
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ title or 'HardwareCare' }}{% endblock %} · HardwareCare</title>
+  <link rel="icon" href="{{ url_for('static', filename='images/favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/bootstrap.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}">
+</head>
+<body>
+{% if current_user.is_authenticated %}
+<div class="shell">
+  <aside class="sidebar" id="sidebar" aria-label="Main navigation">
+    <a class="brand" href="{{ url_for('main.dashboard') }}"><span class="brand-mark">H</span>HardwareCare</a>
+    <nav class="nav-group">
+      {% set ep = request.endpoint or '' %}
+      <a href="{{ url_for('main.dashboard') }}" class="{{ 'active' if ep == 'main.dashboard' }}">{{ icon('grid') }}Dashboard</a>
+      <a href="{{ url_for('main.tickets') }}" class="{{ 'active' if ep in ('main.tickets', 'main.ticket_detail', 'main.problem_detail', 'main.ticket_new') }}">{{ icon('ticket') }}{{ 'My tickets' if current_user.role in (Role.CUSTOMER, Role.ENGINEER) else 'Tickets' }}</a>
+      {% if current_user.role == Role.MANAGEMENT %}
+      <a href="{{ url_for('main.tickets', status='PENDING_MANAGEMENT') }}">{{ icon('check') }}Awaiting review</a>
+      {% endif %}
+      {% if current_user.role in (Role.ADMIN, Role.SUPPORT) %}
+      <a href="{{ url_for('main.customers') }}" class="{{ 'active' if ep.startswith('main.customer') }}">{{ icon('building') }}Customers</a>
+      {% endif %}
+      {% if current_user.role == Role.ADMIN %}
+      <a href="{{ url_for('main.users') }}" class="{{ 'active' if ep.startswith('main.user') }}">{{ icon('users') }}Users</a>
+      <a href="{{ url_for('main.audit_log') }}" class="{{ 'active' if ep == 'main.audit_log' }}">{{ icon('log') }}Audit log</a>
+      {% endif %}
+      <a href="{{ url_for('auth.profile') }}" class="{{ 'active' if ep == 'auth.profile' }}">{{ icon('user') }}Account</a>
+    </nav>
+    <div class="side-foot">
+      <div class="who">{{ current_user.full_name }}</div>
+      <div class="mb-2">{{ current_user.role|label }}</div>
+      <form method="post" action="{{ url_for('auth.logout') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-sm btn-outline-light" type="submit">Sign out</button>
+      </form>
+    </div>
+  </aside>
+  <div class="content">
+    <div class="topbar"><strong>HardwareCare</strong><button class="btn btn-sm btn-outline-light" id="nav-toggle" type="button" aria-controls="sidebar">Menu</button></div>
+    <main class="main">
+      {% include '_flash.html' %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% else %}
+  {% block public %}{% endblock %}
+{% endif %}
+<script src="{{ url_for('static', filename='vendor/bootstrap.bundle.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

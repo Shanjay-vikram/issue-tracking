@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import pager, empty %}
+{% block title %}Audit log{% endblock %}
+{% block content %}
+<div class="page-head"><div><h1>Audit log</h1><div class="sub">Sign-ins, approvals, uploads and other recorded actions</div></div></div>
+<form class="filters" method="get"><div><label class="form-label" for="q">Search</label><input class="form-control" id="q" name="q" value="{{ q }}" placeholder="Action, user or detail"></div><button class="btn btn-outline-primary" type="submit">Search</button></form>
+<div class="panel">
+{% if page.items %}
+<div class="table-responsive"><table class="table mb-0 table-sm align-middle">
+  <thead><tr><th>Time (UTC)</th><th>User</th><th>Action</th><th>Record</th><th>Details</th><th>IP</th></tr></thead><tbody>
+  {% for a in page.items %}<tr><td class="text-nowrap">{{ a.created_at|dt('%Y-%m-%d %H:%M:%S') }}</td><td>{{ a.username }}</td><td>{{ a.action }}</td><td>{{ a.entity_type }}{{ ' #' ~ a.entity_id if a.entity_id }}</td><td>{{ a.details }}</td><td>{{ a.ip_address }}</td></tr>{% endfor %}
+</tbody></table></div>
+{% else %}{{ empty('Nothing recorded', 'Actions will be listed here as people use the system.') }}{% endif %}
+</div>
+{{ pager(page, 'main.audit_log', q=q) }}
+{% endblock %}
